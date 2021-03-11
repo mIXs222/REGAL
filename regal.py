@@ -9,9 +9,9 @@ except ImportError:
 	import pickle
 from scipy.sparse import csr_matrix
 
-import xnetmf
-from config import *
-from alignments import *
+import alignments as regal_alignments
+import xnetmf as regal_xnetmf
+import config as regal_config
 
 def parse_args():
 	parser = argparse.ArgumentParser(description="Run REGAL.")
@@ -43,95 +43,97 @@ def parse_args():
 	parser.add_argument('--buckets', default=2, type=float, help="base of log for degree (node feature) binning")
 	return parser.parse_args()
 
-def main(args):
-	dataset_name = args.output.split("/")
-	if len(dataset_name) == 1:
-		dataset_name = dataset_name[-1].split(".")[0]
-	else:
-		dataset_name = dataset_name[-2]
+# def main(args):
+# 	dataset_name = args.output.split("/")
+# 	if len(dataset_name) == 1:
+# 		dataset_name = dataset_name[-1].split(".")[0]
+# 	else:
+# 		dataset_name = dataset_name[-2]
 
-	#Get true alignments
-	true_alignments_fname = args.input.split("_")[0] + "_edges-mapping-permutation.txt" #can be changed if desired
-	print("true alignments file: ", true_alignments_fname)
-	true_alignments = None
-	if os.path.exists(true_alignments_fname):
-		with open(true_alignments_fname, "rb") as true_alignments_file:
-			true_alignments = pickle.load(true_alignments_file)
+# 	#Get true alignments
+# 	true_alignments_fname = args.input.split("_")[0] + "_edges-mapping-permutation.txt" #can be changed if desired
+# 	print("true alignments file: ", true_alignments_fname)
+# 	true_alignments = None
+# 	if os.path.exists(true_alignments_fname):
+# 		with open(true_alignments_fname, "rb") as true_alignments_file:
+# 			true_alignments = pickle.load(true_alignments_file)
 
-	#Load in attributes if desired (assumes they are numpy array)
-	if args.attributes is not None:
-		args.attributes = np.load(args.attributes) #load vector of attributes in from file
-		print(args.attributes.shape)
+# 	#Load in attributes if desired (assumes they are numpy array)
+# 	if args.attributes is not None:
+# 		args.attributes = np.load(args.attributes) #load vector of attributes in from file
+# 		print(args.attributes.shape)
 
-	#Learn embeddings and save to output
-	print("learning representations...")
-	before_rep = time.time()
-	learn_representations(args)
-	after_rep = time.time()
-	print("Learned representations in %f seconds" % (after_rep - before_rep))
+# 	#Learn embeddings and save to output
+# 	print("learning representations...")
+# 	before_rep = time.time()
+# 	learn_representations(args)
+# 	after_rep = time.time()
+# 	print("Learned representations in %f seconds" % (after_rep - before_rep))
 
-	#Score alignments learned from embeddings
-	embed = np.load(args.output)
-	emb1, emb2 = get_embeddings(embed)
-	before_align = time.time()
-	if args.numtop == 0:
-		args.numtop = None
-	alignment_matrix = get_embedding_similarities(emb1, emb2, num_top = args.numtop)
+# 	#Score alignments learned from embeddings
+# 	embed = np.load(args.output)
+# 	emb1, emb2 = get_embeddings(embed)
+# 	before_align = time.time()
+# 	if args.numtop == 0:
+# 		args.numtop = None
+# 	alignment_matrix = get_embedding_similarities(emb1, emb2, num_top = args.numtop)
 
-	#Report scoring and timing
-	after_align = time.time()
-	total_time = after_align - before_align
-	print("Align time: "), total_time
+# 	#Report scoring and timing
+# 	after_align = time.time()
+# 	total_time = after_align - before_align
+# 	print("Align time: "), total_time
 
-	if true_alignments is not None:
-		topk_scores = [1,5,10,20,50]
-		for k in topk_scores:
-			score, correct_nodes = score_alignment_matrix(alignment_matrix, topk = k, true_alignments = true_alignments)
-			print("score top%d: %f" % (k, score))
+# 	if true_alignments is not None:
+# 		topk_scores = [1,5,10,20,50]
+# 		for k in topk_scores:
+# 			score, correct_nodes = score_alignment_matrix(alignment_matrix, topk = k, true_alignments = true_alignments)
+# 			print("score top%d: %f" % (k, score))
 
-#Should take in a file with the input graph as edgelist (args.input)
-#Should save representations to args.output
-def learn_representations(args):
-	nx_graph = nx.read_edgelist(args.input, nodetype = int, comments="%")
-	print("read in graph")
-	adj = nx.adjacency_matrix(nx_graph)#.todense()
-	print("got adj matrix")
+# #Should take in a file with the input graph as edgelist (args.input)
+# #Should save representations to args.output
+# def learn_representations(args):
+# 	nx_graph = nx.read_edgelist(args.input, nodetype = int, comments="%")
+# 	print("read in graph")
+# 	adj = nx.adjacency_matrix(nx_graph)#.todense()
+# 	print("got adj matrix")
 	
-	graph = Graph(adj, node_attributes = args.attributes)
-	max_layer = args.untillayer
-	if args.untillayer == 0:
-		max_layer = None
-	alpha = args.alpha
-	num_buckets = args.buckets #BASE OF LOG FOR LOG SCALE
-	if num_buckets == 1:
-		num_buckets = None
-	rep_method = RepMethod(max_layer = max_layer, 
-							alpha = alpha, 
-							k = args.k, 
-							num_buckets = num_buckets, 
-							normalize = True, 
-							gammastruc = args.gammastruc, 
-							gammaattr = args.gammaattr)
-	if max_layer is None:
-		max_layer = 1000
-	print("Learning representations with max layer %d and alpha = %f" % (max_layer, alpha))
-	representations = xnetmf.get_representations(graph, rep_method)
-	pickle.dump(representations, open(args.output, "w"))
+# 	graph = Graph(adj, node_attributes = args.attributes)
+# 	max_layer = args.untillayer
+# 	if args.untillayer == 0:
+# 		max_layer = None
+# 	alpha = args.alpha
+# 	num_buckets = args.buckets #BASE OF LOG FOR LOG SCALE
+# 	if num_buckets == 1:
+# 		num_buckets = None
+# 	rep_method = RepMethod(max_layer = max_layer, 
+# 							alpha = alpha, 
+# 							k = args.k, 
+# 							num_buckets = num_buckets, 
+# 							normalize = True, 
+# 							gammastruc = args.gammastruc, 
+# 							gammaattr = args.gammaattr)
+# 	if max_layer is None:
+# 		max_layer = 1000
+# 	print("Learning representations with max layer %d and alpha = %f" % (max_layer, alpha))
+# 	representations = xnetmf.get_representations(graph, rep_method)
+# 	pickle.dump(representations, open(args.output, "w"))
 
 
 def regal(
     nx_graph,
+    num_node_1=None,  # number of nodes in the first graph, None for the default 
     node_attributes=None,  # N x A matrix, where N is # of nodes, and A is # of attributes
-    max_layer=None,  # > 0
+    max_layer=None,  # furthest hop distance up to which to compare neighbors
     alpha=0.01,  # discount factor for higher layers
     k=10,  # control sample size
     num_buckets=None,  # > 1, BASE OF LOG FOR LOG SCALE
     gammastruc=1,  # parameter weighing structural similarity in node identity
     gammaattr=1,  # parameter weighing attribute similarity in node identity
     numtop=None,  # number of top similarities
+    verbose=False,
   ):
     # embeddings
-    embed = learn_representations(
+    embed = regal_representations(
       nx_graph=nx_graph,
       node_attributes=node_attributes,
       alpha=alpha,
@@ -140,23 +142,25 @@ def regal(
       gammaattr=gammaattr,
       max_layer=max_layer,
       num_buckets=num_buckets,
+      verbose=verbose,
     )
-    print(embed)
+    num_node_1 = embed.shape[0] // 2 if num_node_1 is None else num_node_1
 
     # alignments learned from embeddings
-    emb1, emb2 = regal_alignments.get_embeddings(embed)
+    emb1, emb2 = regal_alignments.get_embeddings(embed, num_node_1=num_node_1)
     alignment_matrix = regal_alignments.get_embedding_similarities(emb1, emb2, num_top=numtop)
     return alignment_matrix
 
 def regal_representations(
     nx_graph,
     node_attributes=None,  # N x A matrix, where N is # of nodes, and A is # of attributes
-    max_layer=None,  # > 0
+    max_layer=None,  # furthest hop distance up to which to compare neighbors
     alpha=0.01,  # discount factor for higher layers
     k=10,  # control sample size
     num_buckets=None,  # > 1, BASE OF LOG FOR LOG SCALE
     gammastruc=1,  # parameter weighing structural similarity in node identity
     gammaattr=1,  # parameter weighing attribute similarity in node identity
+    verbose=False,
   ):
     return regal_xnetmf.get_representations(
       regal_config.Graph(nx.adjacency_matrix(nx_graph), node_attributes=node_attributes),
@@ -168,8 +172,9 @@ def regal_representations(
           normalize=True,
           gammastruc=gammastruc,
           gammaattr=gammaattr,
-      )
-  )
+      ),
+      verbose=verbose,
+  	)
 		
 
 if __name__ == "__main__":

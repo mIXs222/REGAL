@@ -25,11 +25,10 @@ def get_embedding_similarities(embed, embed2 = None, sim_measure = "euclidean", 
   return similarity_matrix
 
 #Split embeddings in half (TODO generalize to different numbers and sizes of networks)
-def get_embeddings(combined_embed):
-  n_nodes = combined_embed.shape[0] // 2 #right now assume graphs are same size
+def get_embeddings(combined_embed, num_node_1):
   dim = combined_embed.shape[1]
-  embed1 = combined_embed[:n_nodes]
-  embed2 = combined_embed[n_nodes:]
+  embed1 = combined_embed[:num_node_1]
+  embed2 = combined_embed[num_node_1:]
 
   return embed1, embed2
 
