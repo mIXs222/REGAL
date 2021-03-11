@@ -52,7 +52,7 @@ def main(args):
 
 	#Get true alignments
 	true_alignments_fname = args.input.split("_")[0] + "_edges-mapping-permutation.txt" #can be changed if desired
-	print "true alignments file: ", true_alignments_fname
+	print("true alignments file: ", true_alignments_fname)
 	true_alignments = None
 	if os.path.exists(true_alignments_fname):
 		with open(true_alignments_fname, "rb") as true_alignments_file:
@@ -61,10 +61,10 @@ def main(args):
 	#Load in attributes if desired (assumes they are numpy array)
 	if args.attributes is not None:
 		args.attributes = np.load(args.attributes) #load vector of attributes in from file
-		print args.attributes.shape
+		print(args.attributes.shape)
 
 	#Learn embeddings and save to output
-	print "learning representations..."
+	print("learning representations...")
 	before_rep = time.time()
 	learn_representations(args)
 	after_rep = time.time()
@@ -93,9 +93,9 @@ def main(args):
 #Should save representations to args.output
 def learn_representations(args):
 	nx_graph = nx.read_edgelist(args.input, nodetype = int, comments="%")
-	print "read in graph"
+	print("read in graph")
 	adj = nx.adjacency_matrix(nx_graph)#.todense()
-	print "got adj matrix"
+	print("got adj matrix")
 	
 	graph = Graph(adj, node_attributes = args.attributes)
 	max_layer = args.untillayer
@@ -117,6 +117,59 @@ def learn_representations(args):
 	print("Learning representations with max layer %d and alpha = %f" % (max_layer, alpha))
 	representations = xnetmf.get_representations(graph, rep_method)
 	pickle.dump(representations, open(args.output, "w"))
+
+
+def regal(
+    nx_graph,
+    node_attributes=None,  # N x A matrix, where N is # of nodes, and A is # of attributes
+    max_layer=None,  # > 0
+    alpha=0.01,  # discount factor for higher layers
+    k=10,  # control sample size
+    num_buckets=None,  # > 1, BASE OF LOG FOR LOG SCALE
+    gammastruc=1,  # parameter weighing structural similarity in node identity
+    gammaattr=1,  # parameter weighing attribute similarity in node identity
+    numtop=None,  # number of top similarities
+  ):
+    # embeddings
+    embed = learn_representations(
+      nx_graph=nx_graph,
+      node_attributes=node_attributes,
+      alpha=alpha,
+      k=k,
+      gammastruc=gammastruc,
+      gammaattr=gammaattr,
+      max_layer=max_layer,
+      num_buckets=num_buckets,
+    )
+    print(embed)
+
+    # alignments learned from embeddings
+    emb1, emb2 = regal_alignments.get_embeddings(embed)
+    alignment_matrix = regal_alignments.get_embedding_similarities(emb1, emb2, num_top=numtop)
+    return alignment_matrix
+
+def regal_representations(
+    nx_graph,
+    node_attributes=None,  # N x A matrix, where N is # of nodes, and A is # of attributes
+    max_layer=None,  # > 0
+    alpha=0.01,  # discount factor for higher layers
+    k=10,  # control sample size
+    num_buckets=None,  # > 1, BASE OF LOG FOR LOG SCALE
+    gammastruc=1,  # parameter weighing structural similarity in node identity
+    gammaattr=1,  # parameter weighing attribute similarity in node identity
+  ):
+    return regal_xnetmf.get_representations(
+      regal_config.Graph(nx.adjacency_matrix(nx_graph), node_attributes=node_attributes),
+      regal_config.RepMethod(
+          max_layer=max_layer,
+          alpha=alpha,
+          k=k,
+          num_buckets=num_buckets,
+          normalize=True,
+          gammastruc=gammastruc,
+          gammaattr=gammaattr,
+      )
+  )
 		
 
 if __name__ == "__main__":
